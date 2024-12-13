@@ -1,4 +1,5 @@
-import { useState } from "react";
+// Import required libraries
+import { useState, useEffect } from "react";
 import { FaRocket } from "react-icons/fa";
 import { motion } from "framer-motion";
 
@@ -7,8 +8,10 @@ function App() {
   const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Function to handle real-time updates for responses
   const handleGenerate = async () => {
     setLoading(true);
+    setResponse("");
     try {
       const res = await fetch("https://bolt.new/api/enhancer", {
         headers: {
@@ -30,8 +33,16 @@ function App() {
         method: "POST",
       });
 
-      const data = await res.json();
-      setResponse(data);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let done = false;
+
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        const chunk = decoder.decode(value, { stream: true });
+        setResponse((prev) => prev + chunk);
+      }
     } catch (error) {
       console.error("Error fetching data:", error);
       setResponse("An error occurred. Please try again.");
@@ -73,8 +84,8 @@ function App() {
         className="bg-gray-800 shadow-lg rounded-lg p-6 w-full max-w-lg mt-6"
       >
         <h2 className="text-xl font-bold mb-2">Response:</h2>
-        <div className="text-gray-300 whitespace-pre-wrap">
-          {response ? <p>{JSON.stringify(response, null, 2)}</p> : <p>No response yet.</p>}
+        <div className="text-gray-300 whitespace-pre-wrap overflow-y-auto max-h-64">
+          {response ? <p>{response}</p> : <p>No response yet.</p>}
         </div>
       </motion.div>
     </div>
