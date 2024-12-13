@@ -1,6 +1,8 @@
+// Import required libraries
 import { useState } from "react";
 import { FaRocket } from "react-icons/fa";
 import { motion } from "framer-motion";
+import axios from "axios";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { PuffLoader } from "react-spinners";
@@ -16,16 +18,19 @@ function App() {
   const handleGenerate = async () => {
     setLoading(true);
     setResponse("");
+
     try {
-      const res = await fetch("https://bolt.new/api/enhancer", {
+      const res = await axios({
+        method: "post",
+        url: "https://bolt.new/api/enhancer",
         headers: {
           "accept": "*/*",
           "accept-language": "en-GB,en-US;q=0.9,en;q=0.8",
           "content-type": "text/plain;charset=UTF-8",
           "priority": "u=1, i",
-          "sec-ch-ua": "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"",
+          "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
           "sec-ch-ua-mobile": "?0",
-          "sec-ch-ua-platform": "\"Windows\"",
+          "sec-ch-ua-platform": '"Windows"',
           "sec-fetch-dest": "empty",
           "sec-fetch-mode": "cors",
           "sec-fetch-site": "same-origin",
@@ -33,34 +38,23 @@ function App() {
           "Referer": "https://bolt.new/",
           "Referrer-Policy": "strict-origin-when-cross-origin",
         },
-        body: JSON.stringify({ message: prompt }),
-        method: "POST",
+        data: JSON.stringify({ message: prompt }),
+        responseType: "stream",
       });
 
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
+      // Handle real-time response
+      const reader = res.data.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let done = false;
+
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        const chunk = decoder.decode(value, { stream: true });
+        setResponse((prev) => prev + chunk);
       }
 
-      const contentType = res.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        const data = await res.json();
-        setResponse(JSON.stringify(data, null, 2));
-        notifySuccess("Response successfully generated!");
-      } else if (res.body) {
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-        let done = false;
-
-        while (!done) {
-          const { value, done: readerDone } = await reader.read();
-          done = readerDone;
-          const chunk = decoder.decode(value, { stream: true });
-          setResponse((prev) => prev + chunk);
-        }
-        notifySuccess("Response successfully generated!");
-      } else {
-        setResponse("No readable response body.");
-      }
+      notifySuccess("Response successfully generated!");
     } catch (error) {
       console.error("Error fetching data:", error);
       setResponse("An error occurred. Please try again.");
