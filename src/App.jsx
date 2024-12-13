@@ -1,14 +1,18 @@
-// Import required libraries
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { FaRocket } from "react-icons/fa";
 import { motion } from "framer-motion";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import { PuffLoader } from "react-spinners";
 
 function App() {
   const [prompt, setPrompt] = useState("");
   const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Function to handle real-time updates for responses
+  const notifyError = (message) => toast.error(message);
+  const notifySuccess = (message) => toast.success(message);
+
   const handleGenerate = async () => {
     setLoading(true);
     setResponse("");
@@ -33,19 +37,34 @@ function App() {
         method: "POST",
       });
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-      let done = false;
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
 
-      while (!done) {
-        const { value, done: readerDone } = await reader.read();
-        done = readerDone;
-        const chunk = decoder.decode(value, { stream: true });
-        setResponse((prev) => prev + chunk);
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        const data = await res.json();
+        setResponse(JSON.stringify(data, null, 2));
+        notifySuccess("Response successfully generated!");
+      } else if (res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let done = false;
+
+        while (!done) {
+          const { value, done: readerDone } = await reader.read();
+          done = readerDone;
+          const chunk = decoder.decode(value, { stream: true });
+          setResponse((prev) => prev + chunk);
+        }
+        notifySuccess("Response successfully generated!");
+      } else {
+        setResponse("No readable response body.");
       }
     } catch (error) {
       console.error("Error fetching data:", error);
       setResponse("An error occurred. Please try again.");
+      notifyError("Failed to generate response. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -53,6 +72,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4">
+      <ToastContainer position="top-right" autoClose={3000} />
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -72,9 +92,20 @@ function App() {
         <button
           onClick={handleGenerate}
           disabled={loading}
-          className={`w-full py-2 px-4 rounded-lg font-semibold ${loading ? "bg-gray-600 cursor-not-allowed" : "bg-yellow-400 text-black hover:bg-yellow-500"}`}
+          className={`w-full py-2 px-4 rounded-lg font-semibold ${
+            loading
+              ? "bg-gray-600 cursor-not-allowed"
+              : "bg-yellow-400 text-black hover:bg-yellow-500"
+          }`}
         >
-          {loading ? "Generating..." : "Generate"}
+          {loading ? (
+            <div className="flex justify-center items-center">
+              <PuffLoader color="#fff" size={24} />
+              <span className="ml-2">Generating...</span>
+            </div>
+          ) : (
+            "Generate"
+          )}
         </button>
       </motion.div>
       <motion.div
